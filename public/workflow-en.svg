@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="240" viewBox="0 0 1400 240" fill="none">
+  <defs>
+    <style>
+      .node { fill: #ffffff; stroke: #1677ff; stroke-width: 2; rx: 12; ry: 12; }
+      .title { font: 600 18px Arial, Helvetica, sans-serif; fill: #0f1f38; }
+      .subtitle { font: 400 14px Arial, Helvetica, sans-serif; fill: #5a6b87; }
+      .arrow { stroke: #1677ff; stroke-width: 2.5; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="8" refX="10" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,4 L0,8 Z" fill="#1677ff"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#a9c9ff" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1400" height="240" fill="#f5f7fa"/>
+
+  <!-- Arrows -->
+  <g>
+    <line class="arrow" x1="250" y1="120" x2="290" y2="120"/>
+    <line class="arrow" x1="525" y1="120" x2="565" y2="120"/>
+    <line class="arrow" x1="800" y1="120" x2="840" y2="120"/>
+    <line class="arrow" x1="1075" y1="120" x2="1115" y2="120"/>
+  </g>
+
+  <!-- Nodes -->
+  <g filter="url(#shadow)">
+    <!-- 1 Data Acquisition -->
+    <rect class="node" x="40" y="60" width="210" height="120"/>
+    <text class="title" x="60" y="98">Data Acquisition</text>
+    <text class="subtitle" x="60" y="124">Core porosity + XRD minerals</text>
+    <text class="subtitle" x="60" y="146">Study area: Qaidam Basin</text>
+
+    <!-- 2 QC / Preprocessing -->
+    <rect class="node" x="315" y="60" width="210" height="120"/>
+    <text class="title" x="335" y="98">QC / Preprocessing</text>
+    <text class="subtitle" x="335" y="124">Cleaning, outliers</text>
+    <text class="subtitle" x="335" y="146">Standardize / Normalize</text>
+
+    <!-- 3 Feature Engineering -->
+    <rect class="node" x="590" y="60" width="210" height="120"/>
+    <text class="title" x="610" y="98">Feature Engineering</text>
+    <text class="subtitle" x="610" y="124">Bulk density + Dolomite</text>
+    <text class="subtitle" x="610" y="146">(Candidates: Clay/Quartz/Calcite)</text>
+
+    <!-- 4 Modeling Comparison -->
+    <rect class="node" x="865" y="60" width="210" height="120"/>
+    <text class="title" x="885" y="98">Modeling Comparison</text>
+    <text class="subtitle" x="885" y="124">LR, RR, PR, SVR, XGB, RF</text>
+    <text class="subtitle" x="885" y="146">Hyperparams: grid/random</text>
+
+    <!-- 5 Training & Validation -->
+    <rect class="node" x="1140" y="60" width="210" height="120"/>
+    <text class="title" x="1160" y="98">Training & Validation</text>
+    <text class="subtitle" x="1160" y="124">80/20 split, 5-fold CV</text>
+    <text class="subtitle" x="1160" y="146">Anti-leakage & Robustness</text>
+  </g>
+
+  <!-- Summary bar below -->
+  <g filter="url(#shadow)">
+    <rect class="node" x="40" y="190" width="1320" height="40" rx="8" ry="8"/>
+    <text class="subtitle" x="60" y="216">Evaluation & Results: R², MSE, RMSE, MAE, MAPE; RF best overall, most concentrated residuals; Application: sweet-spot ID, design; Suggest stratified modeling & external validation</text>
+  </g>
+</svg>

@@ -1,0 +1,220 @@
+.app-container {
+  min-height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  background: linear-gradient(90deg, #1677ff 0%, #69b1ff 100%);
+  padding: 0 32px;
+  width: 100%;
+  height: 64px;
+  box-shadow: 0 2px 8px #e6f0ff;
+}
+
+.app-content {
+  padding: 24px 24px 16px 24px;
+  background-color: #f5f7fa;
+  min-height: calc(100vh - 64px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.control-panel {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  align-items: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 20px;
+  box-shadow: 0 2px 8px #f0f1f2;
+}
+
+.translation-area {
+  display: flex;
+  gap: 32px;
+  height: calc(100vh - 160px);
+}
+
+/* 输入区域样式 */
+.input-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 8px #f0f1f2;
+}
+
+.input-area .ant-input {
+  flex: 1;
+  min-height: 400px !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+  padding: 16px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  resize: none !important;
+}
+
+/* 输出区域样式 */
+.output-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 8px #f0f1f2;
+}
+
+.area-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.area-header h3 {
+  margin: 0;
+  color: #1677ff;
+  font-size: 18px;
+}
+
+.translation-progress {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 2px;
+  background: #f0f7ff;
+  border-radius: 5px;
+}
+
+.translation-progress .ant-progress {
+  margin-right: 4px;
+}
+
+.translation-progress .ant-typography {
+  font-size: 10px;
+  margin: 0;
+}
+
+.output-info {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.output-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.translation-container {
+  height: 100%;
+}
+
+.translation-result {
+  height: 100%;
+}
+
+.result-textarea {
+  width: 100% !important;
+  min-height: 400px !important;
+  height: calc(100vh - 230px) !important;
+  font-size: 15px !important;
+  line-height: 1.8 !important;
+  padding: 16px !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  resize: none !important;
+  background-color: #fff !important;
+  margin-bottom: 0 !important;
+}
+
+/* 统一滚动条样式 */
+.ant-input::-webkit-scrollbar,
+.result-textarea::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ant-input::-webkit-scrollbar-track,
+.result-textarea::-webkit-scrollbar-track {
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.ant-input::-webkit-scrollbar-thumb,
+.result-textarea::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.ant-input::-webkit-scrollbar-thumb:hover,
+.result-textarea::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .app-content {
+    padding: 16px 12px;
+  }
+
+  .translation-area {
+    flex-direction: column;
+    gap: 16px;
+    height: auto;
+  }
+
+  .area-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .header-left {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .translation-progress {
+    padding: 4px 8px;
+  }
+
+  .output-info {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .input-area,
+  .output-area {
+    padding: 16px;
+  }
+
+  .input-area .ant-input,
+  .result-textarea {
+    min-height: 300px !important;
+    height: 400px !important;
+  }
+
+  .control-panel {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+}
