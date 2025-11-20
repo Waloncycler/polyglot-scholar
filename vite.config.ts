@@ -12,5 +12,18 @@ export default defineConfig({
         secure: false,
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom'],
+          antd: ['antd'],
+          vendor: ['axios'],
+          doc: ['mammoth'],
+          ppt: ['pptxgenjs']
+        }
+      }
+    }
   }
 })

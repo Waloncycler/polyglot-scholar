@@ -5,6 +5,7 @@ const axios = require('axios');
 const rateLimit = require('express-rate-limit');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
+const compression = require('compression');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -33,6 +34,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // 中间件
 app.use(cors());
 app.use(express.json());
+app.use(compression());
 
 // 速率限制
 const apiLimiter = rateLimit({
@@ -94,7 +96,8 @@ app.post('/api/openai/chat/completions', async (req, res) => {
     }
 
     const startTime = Date.now();
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', req.body, {
+    const { __meta, ...forwardBody } = req.body || {};
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', forwardBody, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apikey}` // 使用从 headers 中获取的 apiKey
@@ -109,7 +112,8 @@ app.post('/api/openai/chat/completions', async (req, res) => {
       ...response.data,
       _metadata: {
         processingTime,
-        provider: 'openai'
+        provider: 'openai',
+        clientMeta: __meta || null
       }
     };
 
@@ -183,7 +187,8 @@ app.post('/api/deepseek/chat/completions', async (req, res) => {
     }
 
     const startTime = Date.now();
-    const response = await axios.post('https://api.deepseek.com/v1/chat/completions', req.body, {
+    const { __meta, ...forwardBody } = req.body || {};
+    const response = await axios.post('https://api.deepseek.com/v1/chat/completions', forwardBody, {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apikey}` // 使用从 headers 中获取的 apiKey
@@ -200,7 +205,8 @@ app.post('/api/deepseek/chat/completions', async (req, res) => {
       ...response.data,
       _metadata: {
         processingTime,
-        provider: 'deepseek'
+        provider: 'deepseek',
+        clientMeta: __meta || null
       }
     };
 
@@ -274,7 +280,8 @@ app.post('/api/anthropic/messages', async (req, res) => {
     }
 
     const startTime = Date.now();
-    const response = await axios.post('https://api.anthropic.com/v1/messages', req.body, {
+    const { __meta, ...forwardBody } = req.body || {};
+    const response = await axios.post('https://api.anthropic.com/v1/messages', forwardBody, {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apikey, // 使用从 headers 中获取的 apiKey
@@ -290,7 +297,8 @@ app.post('/api/anthropic/messages', async (req, res) => {
       ...response.data,
       _metadata: {
         processingTime,
-        provider: 'anthropic'
+        provider: 'anthropic',
+        clientMeta: __meta || null
       }
     };
 
@@ -342,4 +350,134 @@ app.get('/api/health', (req, res) => {
 // 启动服务器
 app.listen(PORT, () => {
   console.log(`API代理服务器运行在端口 ${PORT}`);
+});
+app.post('/api/openai/chat/stream', async (req, res) => {
+  try {
+    const { apikey } = req.headers;
+    if (!apikey) {
+      res.writeHead(401, { 'Content-Type': 'text/event-stream' });
+      res.write(`event: error\ndata: ${JSON.stringify({ code: 'AUTH_ERROR', error: '缺少API密钥' })}\n\n`);
+      return res.end();
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    const { __meta, ...forwardBody } = req.body || {};
+    if (__meta) {
+      res.write(`event: meta\ndata: ${JSON.stringify({ clientMeta: __meta })}\n\n`);
+    }
+    forwardBody.stream = true;
+    const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Authorization': `Bearer ${apikey}`
+      },
+      body: JSON.stringify(forwardBody)
+    });
+    if (!upstream.ok) {
+      const text = await upstream.text();
+      res.write(`event: error\ndata: ${JSON.stringify({ code: 'API_ERROR', error: text })}\n\n`);
+      return res.end();
+    }
+    const reader = upstream.body.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+  } catch (err) {
+    res.write(`event: error\ndata: ${JSON.stringify({ code: 'API_ERROR', error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
+app.post('/api/deepseek/chat/stream', async (req, res) => {
+  try {
+    const { apikey } = req.headers;
+    if (!apikey) {
+      res.writeHead(401, { 'Content-Type': 'text/event-stream' });
+      res.write(`event: error\ndata: ${JSON.stringify({ code: 'AUTH_ERROR', error: '缺少API密钥' })}\n\n`);
+      return res.end();
+    }
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    const { __meta, ...forwardBody } = req.body || {};
+    if (__meta) {
+      res.write(`event: meta\ndata: ${JSON.stringify({ clientMeta: __meta })}\n\n`);
+    }
+    forwardBody.stream = true;
+    const upstream = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Authorization': `Bearer ${apikey}`
+      },
+      body: JSON.stringify(forwardBody)
+    });
+    if (!upstream.ok) {
+      const text = await upstream.text();
+      res.write(`event: error\ndata: ${JSON.stringify({ code: 'API_ERROR', error: text })}\n\n`);
+      return res.end();
+    }
+    const reader = upstream.body.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+  } catch (err) {
+    res.write(`event: error\ndata: ${JSON.stringify({ code: 'API_ERROR', error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
+app.post('/api/anthropic/messages/stream', async (req, res) => {
+  try {
+    const { apikey } = req.headers;
+    if (!apikey) {
+      res.writeHead(401, { 'Content-Type': 'text/event-stream' });
+      res.write(`event: error\ndata: ${JSON.stringify({ code: 'AUTH_ERROR', error: '缺少API密钥' })}\n\n`);
+      return res.end();
+    }
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    const { __meta, ...forwardBody } = req.body || {};
+    if (__meta) {
+      res.write(`event: meta\ndata: ${JSON.stringify({ clientMeta: __meta })}\n\n`);
+    }
+    forwardBody.stream = true;
+    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'x-api-key': apikey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify(forwardBody)
+    });
+    if (!upstream.ok) {
+      const text = await upstream.text();
+      res.write(`event: error\ndata: ${JSON.stringify({ code: 'API_ERROR', error: text })}\n\n`);
+      return res.end();
+    }
+    const reader = upstream.body.getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+  } catch (err) {
+    res.write(`event: error\ndata: ${JSON.stringify({ code: 'API_ERROR', error: err.message })}\n\n`);
+    res.end();
+  }
 });

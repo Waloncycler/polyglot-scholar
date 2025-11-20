@@ -41,6 +41,38 @@
   height: calc(100vh - 160px);
 }
 
+.input-area,
+.output-area {
+  height: 100%;
+  overflow: hidden;
+}
+
+.chunk {
+  white-space: pre-wrap;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: #ffffff;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.chunk .ant-typography + .ant-btn {
+  margin-left: 8px;
+}
+
+.chunk:hover {
+  border-color: #d9d9d9;
+  background: #fafafa;
+}
+
+.chunk-active {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
+  background: #f0f7ff;
+}
+
 /* 输入区域样式 */
 .input-area {
   flex: 1;
@@ -54,17 +86,21 @@
 
 .input-area .ant-input {
   flex: 1;
-  min-height: 400px !important;
+  min-height: auto !important;
+  height: 100% !important;
   font-size: 15px !important;
   line-height: 1.8 !important;
   padding: 16px !important;
   border: 1px solid #e5e7eb !important;
   border-radius: 8px !important;
   resize: none !important;
+  scroll-behavior: smooth;
 }
 
 /* 输出区域样式 */
 .output-area {
+  min-height: auto !important;
+  height: 100% !important;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -122,14 +158,51 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .translation-container {
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
 }
 
-.translation-result {
-  height: 100%;
+.index-list {
+  max-height: 40%;
+  overflow: auto;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.detail-card {
+  flex: 1;
+  overflow: auto;
+}
+
+/* 翻译结果滚动条样式 */
+.index-list::-webkit-scrollbar,
+.detail-card::-webkit-scrollbar {
+  width: 8px;
+}
+
+.index-list::-webkit-scrollbar-track,
+.detail-card::-webkit-scrollbar-track {
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+
+.index-list::-webkit-scrollbar-thumb,
+.detail-card::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+}
+
+.index-list::-webkit-scrollbar-thumb:hover,
+.detail-card::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }
 
 .result-textarea {
@@ -217,4 +290,16 @@
     gap: 12px;
     padding: 12px;
   }
+}
+.chunk-content {
+  color: #222;
+}
+
+.index-preview {
+  color: #6b7280;
+  margin-top: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

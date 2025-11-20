@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { Layout, Typography, Button, Select, Spin, message, Tooltip } from 'antd';
+import { useState, useEffect, useRef } from 'react';
+import { Layout, Typography, Button, Select, message, Tooltip } from 'antd';
 import { InfoCircleOutlined } from '@ant-design/icons';
 import './App.css';
 import TextInputArea from './components/TextInputArea';
 import OutputArea from './components/OutputArea';
 import ConfigPanel from './components/ConfigPanel';
 import { SUPPORTED_MODELS, STORAGE_KEYS } from './utils/modelConfig';
-import translateText from './services/translationService';
+import translateText, { splitTextIntoChunks, translateTextStream } from './services/translationService';
 
 
 const { Header, Content } = Layout;
@@ -23,6 +23,11 @@ function App() {
   const [configVisible, setConfigVisible] = useState<boolean>(false);
   const [translationTime, setTranslationTime] = useState<number | null>(null);
   const [outputChunks, setOutputChunks] = useState<string[]>([]);
+  const [totalChunks, setTotalChunks] = useState<number>(0);
+  const [completedChunks, setCompletedChunks] = useState<number>(0);
+  const [selectedChunkIndex, setSelectedChunkIndex] = useState<number | null>(null);
+  const [inputRanges, setInputRanges] = useState<Array<{ start: number; end: number }>>([]);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // 从本地存储加载设置
   useEffect(() => {
@@ -66,17 +71,61 @@ function App() {
     setOutputChunks([]);
     setOutputText('');
     setTranslationTime(null);
+    setTotalChunks(0);
     try {
-      const result = await translateText({
+      const defaultChunkSize = selectedModel === 'deepseek-v3' ? 800 : 4000;
+      const preChunks = splitTextIntoChunks(inputText, defaultChunkSize);
+      setTotalChunks(preChunks.length);
+      setOutputChunks(new Array(preChunks.length).fill(''));
+      const ranges: Array<{ start: number; end: number }> = [];
+      let searchPos = 0;
+      for (const chunk of preChunks) {
+        const cleaned = chunk.replace(/^\[这是第[\s\S]*?\]\n\n/, '');
+        const idx = inputText.indexOf(cleaned.slice(0, Math.min(cleaned.length, 50)).trim(), searchPos);
+        const start = idx >= 0 ? idx : searchPos;
+        const end = Math.min(start + cleaned.length, inputText.length);
+        ranges.push({ start, end });
+        searchPos = end;
+      }
+      setInputRanges(ranges);
+      const useStream = selectedModel === 'gpt-4o' || selectedModel === 'deepseek-v3' || selectedModel === 'claude-3-sonnet';
+      const translator = useStream ? translateTextStream : translateText;
+      const result = await translator({
         text: inputText,
         model: selectedModel,
         apiKey: apiKey,
         customPrompt: customPrompt,
-        onProgress: (text) => {
+        onProgress: (text, stats) => {
           setOutputText(text);
-          // 更新分段显示
-          const chunks = text.split(/\n\n/);
-          setOutputChunks(chunks);
+          if (typeof stats?.total === 'number' && typeof stats?.completed === 'number') {
+            setCompletedChunks(stats.completed);
+            setTotalChunks(stats.total);
+          }
+          if (typeof stats?.lastChunkIndex === 'number' && typeof stats?.chunkDelta === 'string') {
+            setOutputChunks((prev) => {
+              const next = prev.length === totalChunks && prev.length > 0 ? [...prev] : new Array(totalChunks || (stats.total || 0)).fill('');
+              const idx = stats!.lastChunkIndex!;
+              next[idx] = (next[idx] || '') + (stats!.chunkDelta!);
+              return next;
+            });
+            if (selectedChunkIndex === null) {
+              setSelectedChunkIndex(stats.lastChunkIndex as number);
+            }
+          }
+          if (typeof stats?.lastChunkIndex === 'number' && typeof stats?.chunkContent === 'string') {
+            setOutputChunks((prev) => {
+              const next = prev.length === totalChunks && prev.length > 0 ? [...prev] : new Array(totalChunks || (stats.total || 0)).fill('');
+              next[stats!.lastChunkIndex!] = stats!.chunkContent!;
+              return next;
+            });
+          }
+          if (typeof stats?.lastChunkIndex === 'number' && typeof stats?.offsetStart === 'number' && typeof stats?.offsetEnd === 'number') {
+            setInputRanges((prev) => {
+              const next = [...prev];
+              next[stats!.lastChunkIndex!] = { start: stats!.offsetStart!, end: stats!.offsetEnd! } as any;
+              return next;
+            });
+          }
         }
       });
       setTranslationTime(result.processingTime);
@@ -155,14 +204,40 @@ function App() {
             value={inputText}
             onChange={setInputText}
             isLoading={isLoading}
+            selectionRange={selectedChunkIndex !== null ? inputRanges[selectedChunkIndex] : null}
+            onSelectionChange={(start, end) => {
+              const idx = inputRanges.findIndex(r => start >= r.start && end <= r.end);
+              if (idx >= 0) setSelectedChunkIndex(idx);
+            }}
+            textareaRef={inputRef}
           />
           
-          <OutputArea 
-            value={outputText}
-            isLoading={isLoading}
-            translationTime={translationTime}
-            modelName={selectedModel}
-            outputChunks={outputChunks}
+      <OutputArea 
+        value={outputText}
+        isLoading={isLoading}
+        translationTime={translationTime}
+        modelName={selectedModel}
+        outputChunks={outputChunks}
+        totalChunks={totalChunks}
+        completedChunks={completedChunks}
+        selectedChunkIndex={selectedChunkIndex}
+        onSelectChunk={(idx) => {
+          if (idx < 0 || idx >= inputRanges.length) return;
+              setSelectedChunkIndex(idx);
+              const range = inputRanges[idx];
+              const el: any = inputRef.current;
+              if (range && el && typeof el.setSelectionRange === 'function') {
+                el.focus();
+                el.setSelectionRange(range.start, range.end);
+                const totalScrollRange = el.scrollHeight - el.clientHeight;
+                if (totalScrollRange > 0 && typeof el.value === 'string') {
+                  const middle = (range.start + range.end) / 2;
+                  const ratio = Math.min(1, Math.max(0, middle / el.value.length));
+                  const target = Math.floor(ratio * totalScrollRange - el.clientHeight * 0.3);
+                  el.scrollTo({ top: Math.max(0, Math.min(totalScrollRange, target)), behavior: 'smooth' });
+                }
+              }
+            }}
           />
         </div>
       </Content>
