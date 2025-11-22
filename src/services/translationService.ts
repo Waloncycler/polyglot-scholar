@@ -5,7 +5,7 @@ interface TranslationRequest {
   model: string;
   apiKey: string;
   customPrompt?: string;
-  onProgress?: (text: string, stats?: { completed: number; total: number; lastChunkIndex?: number; offsetStart?: number; offsetEnd?: number; chunkDelta?: string; chunkContent?: string; isChunkFinal?: boolean }) => void;
+  onProgress?: (text: string, stats?: { completed: number; total: number; lastChunkIndex?: number; offsetStart?: number; offsetEnd?: number; chunkDelta?: string; chunkContent?: string; isChunkFinal?: boolean; isError?: boolean }) => void;
 }
 
 interface TranslationResponse {
@@ -140,15 +140,18 @@ const getApiEndpoint = (model: string): string => {
 };
 
 // 解析API响应
-const parseApiResponse = (model: string, response: any): string => {
-  const responseData = response?.data ? response.data : response;
-  
+const parseApiResponse = (model: string, response: unknown): string => {
+  const responseData = (response as { data?: unknown }).data ?? response;
   switch (model) {
     case 'gpt-4o':
-    case 'deepseek-v3':
-      return responseData.choices[0].message.content;
-    case 'claude-3-sonnet':
-      return responseData.content[0].text;
+    case 'deepseek-v3': {
+      const d = responseData as { choices: { message: { content: string } }[] };
+      return d.choices[0].message.content;
+    }
+    case 'claude-3-sonnet': {
+      const d = responseData as { content: { text: string }[] };
+      return d.content[0].text;
+    }
     default:
       throw new Error(`不支持的模型: ${model}`);
   }
@@ -164,7 +167,6 @@ export const translateText = async ({
   onProgress
 }: TranslationRequest & { maxChunkSize?: number }): Promise<TranslationResponse> => {
   const startTime = Date.now();
-  try {
     await checkBackendHealth();
     // 健康检查失败时不阻断流程，继续尝试请求以便在服务短暂不可达时仍可恢复
     const defaultChunkSize = model === 'deepseek-v3' ? 800 : 4000;
@@ -172,7 +174,7 @@ export const translateText = async ({
     const total = chunks.length;
     const offsets = computeOffsets(text, chunks);
     let translatedText = '';
-    let translationErrors: Array<{ chunkIndex: number; message: string }> = [];
+    const translationErrors: Array<{ chunkIndex: number; message: string }> = [];
     const maxRetries = 3;
     const retryDelay = 2000;
     const concurrency = model === 'deepseek-v3' ? 2 : 3;
@@ -197,15 +199,11 @@ export const translateText = async ({
             },
             timeout: model === 'deepseek-v3' ? 120000 : 60000
           });
-          if (!response.data.success && !response.data.data) {
-            if (typeof response.data.success === 'undefined' && response.data.data) {
-            } else {
-              throw new Error(response.data.error || '未知错误');
-            }
+          const hasProxyWrapper = typeof response.data?.success !== 'undefined';
+          if (hasProxyWrapper && !response.data.data) {
+            throw new Error(response.data.error || '未知错误');
           }
-          const payload = typeof response.data?.success !== 'undefined' && response.data?.data
-            ? response.data.data
-            : response.data;
+          const payload = hasProxyWrapper && response.data?.data ? response.data.data : response.data;
           const chunkTranslation = stripPartHeader(parseApiResponse(model, payload));
           const serverChunkIdx = payload?._metadata?.clientMeta?.chunkIndex ?? i;
           results[serverChunkIdx] = chunkTranslation + (total > 1 ? '\n\n' : '');
@@ -218,11 +216,14 @@ export const translateText = async ({
             onProgress(translatedText.trim(), { completed: nextToEmit, total, lastChunkIndex: serverChunkIdx, offsetStart: cm.offsetStart, offsetEnd: cm.offsetEnd, chunkDelta: chunkTranslation, chunkContent: results[serverChunkIdx] || chunkTranslation, isChunkFinal: true });
           }
           return;
-        } catch (chunkError: any) {
+        } catch (chunkError: unknown) {
           if (retryCount === maxRetries) {
             translationErrors.push({
               chunkIndex: i,
-              message: chunkError.response?.data?.error || chunkError.message
+              message:
+                (typeof chunkError === 'object' && chunkError ? (chunkError as { response?: { data?: { error?: string } } }).response?.data?.error : undefined)
+                || (typeof chunkError === 'object' && chunkError ? (chunkError as { message?: string }).message : undefined)
+                || '未知错误'
             });
             const errorMessage = `[翻译错误: 第${i + 1}部分未能成功翻译]\n\n`;
             results[i] = errorMessage;
@@ -231,15 +232,16 @@ export const translateText = async ({
               nextToEmit++;
             }
             if (onProgress) {
-              onProgress(translatedText.trim(), { completed: nextToEmit, total });
+              onProgress(translatedText.trim(), { completed: nextToEmit, total, lastChunkIndex: i, chunkContent: errorMessage, isChunkFinal: true, isError: true });
             }
             return;
           }
+          const ce = chunkError as { code?: string; message?: string };
           const isTransient =
-            chunkError.code === 'ECONNABORTED' ||
-            chunkError.code === 'ECONNREFUSED' ||
-            chunkError.message?.includes('ERR_NETWORK') ||
-            chunkError.message?.includes('aborted');
+            ce.code === 'ECONNABORTED' ||
+            ce.code === 'ECONNREFUSED' ||
+            ce.message?.includes('ERR_NETWORK') ||
+            ce.message?.includes('aborted');
           if (isTransient) {
             await new Promise(resolve => setTimeout(resolve, retryDelay));
           }
@@ -266,9 +268,7 @@ export const translateText = async ({
       processingTime,
       errors: translationErrors.length > 0 ? translationErrors : undefined
     };
-  } catch (error) {
-    throw error as any;
-  }
+  
 };
 
 export const translateTextStream = async ({
@@ -331,11 +331,11 @@ export const translateTextStream = async ({
       while (typeof results[nextToEmit] !== 'undefined') {
         nextToEmit++;
       }
-      if (onProgress) onProgress((results.filter(Boolean).join('') || '').trim(), { completed: nextToEmit, total });
+      if (onProgress) onProgress((results.filter(Boolean).join('') || '').trim(), { completed: nextToEmit, total, lastChunkIndex: i, chunkContent: results[i] as string, isChunkFinal: true, isError: true });
       continue;
     }
     let buf = '';
-    let lastMeta: any = null;
+    let lastMeta: { chunkIndex?: number; offsetStart?: number; offsetEnd?: number } | null = null;
     const reader = resp.body.getReader();
     while (true) {
       const { value, done } = await reader.read();
@@ -352,7 +352,7 @@ export const translateTextStream = async ({
           if (ln.startsWith('data:')) dataLine += ln.slice(5).trim();
         }
         if (eventType === 'meta') {
-          try { lastMeta = JSON.parse(dataLine).clientMeta || null; } catch {}
+          try { lastMeta = JSON.parse(dataLine).clientMeta || null; } catch (e) { void e; }
           continue;
         }
         if (dataLine === '[DONE]') continue;

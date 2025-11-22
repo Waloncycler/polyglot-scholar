@@ -41,7 +41,7 @@ const TextInputArea: React.FC<TextInputAreaProps> = ({ value, onChange, isLoadin
   };
 
   useEffect(() => {
-    const el: any = textareaRef?.current;
+    const el = (textareaRef?.current as HTMLTextAreaElement | null) || null;
     if (selectionRange && el && typeof el.setSelectionRange === 'function') {
       el.focus();
       el.setSelectionRange(selectionRange.start, selectionRange.end);
@@ -84,8 +84,10 @@ const TextInputArea: React.FC<TextInputAreaProps> = ({ value, onChange, isLoadin
         disabled={isLoading}
         ref={(node) => {
           if (!textareaRef) return;
-          const el: any = (node as any)?.resizableTextArea?.textArea || node;
-          (textareaRef as any).current = el || null;
+          const wrapped = node as unknown as { resizableTextArea?: { textArea?: HTMLTextAreaElement } };
+          const candidate = wrapped?.resizableTextArea?.textArea || (node as HTMLTextAreaElement | null);
+          const el = candidate as HTMLTextAreaElement | null;
+          (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el || null;
         }}
       />
     </div>

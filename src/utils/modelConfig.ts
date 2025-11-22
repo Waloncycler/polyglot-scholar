@@ -55,5 +55,14 @@ export const buildUserPrompt = (text: string, customPrompt: string = ''): string
 export const STORAGE_KEYS = {
   API_KEY: 'polyglot_api_key',
   SELECTED_MODEL: 'polyglot_selected_model',
-  CUSTOM_PROMPT: 'polyglot_custom_prompt'
+  CUSTOM_PROMPT: 'polyglot_custom_prompt',
+  TR_INPUT_TEXT: 'polyglot_tr_input_text',
+  TR_OUTPUT_TEXT: 'polyglot_tr_output_text',
+  TR_OUTPUT_CHUNKS: 'polyglot_tr_output_chunks',
+  TR_INPUT_RANGES: 'polyglot_tr_input_ranges',
+  TR_SELECTED_INDEX: 'polyglot_tr_selected_index',
+  TR_TOTAL_CHUNKS: 'polyglot_tr_total_chunks',
+  TR_COMPLETED_CHUNKS: 'polyglot_tr_completed_chunks',
+  TR_TIME: 'polyglot_tr_time',
+  TR_CHUNK_STATES: 'polyglot_tr_chunk_states'
 };
