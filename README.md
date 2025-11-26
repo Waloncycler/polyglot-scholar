@@ -2,19 +2,20 @@
 
 Polyglot Scholar 是一个面向中文学术内容的翻译与润色工具，支持粘贴文本或上传 `.txt`/`.docx` 文件，基于多种主流大模型（GPT‑4o、DeepSeek‑Chat、Claude‑3‑Sonnet）实现高质量英文翻译。前端使用 React + TypeScript + Vite，后端提供基于 Express 的 API 代理与限流，内置 Swagger 文档。
 
+## 文档与架构
+详细的架构设计、模块说明及核心流程请参考 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+
 ## 主要特性
-- 多模型选择：`GPT-4o`、`DeepSeek-Chat`、`Claude-3-Sonnet`
-- 长文本智能分段、断点续翻与重试机制，实时进度展示
-- 上传 `.txt` 或 `.docx` 自动抽取纯文本（使用 `mammoth`）
-- 自定义提示词/术语表，适配学术领域术语
-- 本地存储保存 `API 密钥`、`模型选择` 与 `自定义提示词`
-- 后端统一代理 `/api`，支持限流与详细错误信息
-- Swagger 接口文档：`http://localhost:3001/api-docs`
+- **多模型支持**：无缝切换 `GPT-4o`、`DeepSeek-Chat`、`Claude-3-Sonnet`。
+- **智能长文本处理**：自动分段、断点续翻、上下文保持，解决长文献翻译中断问题。
+- **格式支持**：支持直接粘贴文本或上传 `.txt`/`.docx`（自动提取纯文本）。
+- **专业定制**：内置学术/油气行业/科技论文等多套预设提示词，支持自定义术语表。
+- **隐私安全**：API 密钥仅存储在本地浏览器，后端仅做透明转发。
 
 ## 技术栈
-- 前端：`React`、`TypeScript`、`Vite`、`Ant Design`、`axios`
-- 文档抽取：`mammoth`（DOCX 提取）
-- 后端：`Express`、`axios`、`express-rate-limit`、`swagger-jsdoc`、`swagger-ui-express`
+- **前端**：React 19, TypeScript, Vite, Ant Design
+- **后端**：Node.js, Express (作为 API 网关与限流代理)
+- **工具**：Mammoth (.docx 解析), Swagger (API 文档)
 
 ## 快速开始
 ### 环境准备
@@ -60,7 +61,8 @@ Polyglot Scholar 是一个面向中文学术内容的翻译与润色工具，支
   ```
 
 ## 使用说明
-1. 在页面点击“显示配置”，输入对应模型的 `API 密钥`（支持 OpenAI、DeepSeek、Anthropic）。
+1. 在页面点击“显示配置”，输入对应模型的 `API 密钥`。
+   > **注意**：系统当前仅存储一个 API Key。若切换不同厂商的模型（如从 GPT-4o 切换到 DeepSeek），请务必在配置面板更新对应的 Key。
 2. 选择模型（顶部下拉）。
 3. 在左侧输入框粘贴中文文本，或上传 `.txt` / `.docx` 文件。
 4. 点击“翻译”，右侧区域显示翻译结果、用时与已完成段数。

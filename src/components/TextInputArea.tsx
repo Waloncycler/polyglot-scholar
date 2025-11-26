@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Input, Upload, Button, message } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
-import mammoth from 'mammoth';
+import { parseFile } from '../services/fileParser';
 
 const { TextArea } = Input;
 
@@ -17,19 +17,26 @@ interface TextInputAreaProps {
 const TextInputArea: React.FC<TextInputAreaProps> = ({ value, onChange, isLoading, selectionRange, onSelectionChange, textareaRef }) => {
   const handleFileUpload = async (file: File) => {
     try {
-      if (file.type === 'text/plain') {
-        // 处理 .txt 文件
-        const text = await file.text();
-        onChange(text);
-        message.success(`成功上传文件: ${file.name}`);
-      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        // 处理 .docx 文件
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        onChange(result.value);
+      const allowedTypes = [
+        'text/plain', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel'
+      ];
+      
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const isAllowedExt = ['txt', 'docx', 'xlsx', 'xls'].includes(fileExt || '');
+
+      if (allowedTypes.includes(file.type) || isAllowedExt) {
+        const result = await parseFile(file);
+        if (result.error) {
+          message.error(result.error);
+          return false;
+        }
+        onChange(result.text);
         message.success(`成功上传文件: ${file.name}`);
       } else {
-        message.error('不支持的文件格式，请上传 .txt 或 .docx 文件');
+        message.error('不支持的文件格式，请上传 .txt, .docx 或 .xlsx 文件');
         return false;
       }
     } catch (error) {
@@ -41,7 +48,7 @@ const TextInputArea: React.FC<TextInputAreaProps> = ({ value, onChange, isLoadin
   };
 
   useEffect(() => {
-    const el = (textareaRef?.current as HTMLTextAreaElement | null) || null;
+    const el = textareaRef?.current;
     if (selectionRange && el && typeof el.setSelectionRange === 'function') {
       el.focus();
       el.setSelectionRange(selectionRange.start, selectionRange.end);
@@ -62,7 +69,7 @@ const TextInputArea: React.FC<TextInputAreaProps> = ({ value, onChange, isLoadin
         <Upload
           beforeUpload={handleFileUpload}
           showUploadList={false}
-          accept=".txt,.docx"
+          accept=".txt,.docx,.xlsx,.xls"
           disabled={isLoading}
         >
           <Button icon={<UploadOutlined />} disabled={isLoading}>
@@ -84,9 +91,8 @@ const TextInputArea: React.FC<TextInputAreaProps> = ({ value, onChange, isLoadin
         disabled={isLoading}
         ref={(node) => {
           if (!textareaRef) return;
-          const wrapped = node as unknown as { resizableTextArea?: { textArea?: HTMLTextAreaElement } };
-          const candidate = wrapped?.resizableTextArea?.textArea || (node as HTMLTextAreaElement | null);
-          const el = candidate as HTMLTextAreaElement | null;
+          const textAreaNode = node as unknown as { resizableTextArea?: { textArea: HTMLTextAreaElement } };
+          const el = textAreaNode?.resizableTextArea?.textArea || (node as unknown as HTMLTextAreaElement);
           (textareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = el || null;
         }}
       />
