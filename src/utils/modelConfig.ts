@@ -64,5 +64,6 @@ export const STORAGE_KEYS = {
   TR_TOTAL_CHUNKS: 'polyglot_tr_total_chunks',
   TR_COMPLETED_CHUNKS: 'polyglot_tr_completed_chunks',
   TR_TIME: 'polyglot_tr_time',
-  TR_CHUNK_STATES: 'polyglot_tr_chunk_states'
+  TR_CHUNK_STATES: 'polyglot_tr_chunk_states',
+  GLOSSARY: 'polyglot_glossary'
 };

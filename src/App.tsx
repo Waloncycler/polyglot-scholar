@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Layout, Typography, Button, Select, message, Tooltip } from 'antd';
-import { InfoCircleOutlined, EditOutlined, SplitCellsOutlined } from '@ant-design/icons';
+import { Layout, Typography, Button, Select, message, Tooltip, Upload, Dropdown, type MenuProps, Space } from 'antd';
+import { InfoCircleOutlined, EditOutlined, SplitCellsOutlined, CopyOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import './App.css';
 import TextInputArea from './components/TextInputArea';
 import OutputArea from './components/OutputArea';
@@ -8,6 +8,8 @@ import ParallelTranslationView from './components/ParallelTranslationView';
 import ConfigPanel from './components/ConfigPanel';
 import { SUPPORTED_MODELS, STORAGE_KEYS } from './utils/modelConfig';
 import translateText, { splitTextIntoChunks, computeOffsets } from './services/translationService';
+import { parseFile } from './services/fileParser';
+import { exportToMarkdown, exportToTxt, exportToDocx, generateFilename } from './utils/exportUtils';
 
 
 const { Header, Content } = Layout;
@@ -21,6 +23,7 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [apiKey, setApiKey] = useState<string>('');
   const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [glossary, setGlossary] = useState<{ [key: string]: string }>({});
   const [configVisible, setConfigVisible] = useState<boolean>(false);
   const [translationTime, setTranslationTime] = useState<number | null>(null);
   const [outputChunks, setOutputChunks] = useState<string[]>([]);
@@ -41,7 +44,23 @@ function App() {
     if (savedApiKey) setApiKey(savedApiKey);
     if (savedModel) setSelectedModel(savedModel);
     if (savedPrompt) setCustomPrompt(savedPrompt);
+
+    const storedGlossary = localStorage.getItem(STORAGE_KEYS.GLOSSARY);
+    if (storedGlossary) {
+      try {
+        setGlossary(JSON.parse(storedGlossary));
+      } catch (e) {
+        console.error('Failed to parse glossary:', e);
+      }
+    }
   }, []);
+
+  // 保存配置到本地存储
+  useEffect(() => {
+    if (apiKey) localStorage.setItem(STORAGE_KEYS.API_KEY, apiKey);
+    if (customPrompt) localStorage.setItem(STORAGE_KEYS.CUSTOM_PROMPT, customPrompt);
+    localStorage.setItem(STORAGE_KEYS.GLOSSARY, JSON.stringify(glossary));
+  }, [apiKey, customPrompt, glossary]);
 
   // 保存模型选择到本地存储
   const handleModelChange = (value: string) => {
@@ -59,6 +78,79 @@ function App() {
   const handleApiKeyChange = (value: string) => {
     setApiKey(value);
     localStorage.setItem(STORAGE_KEYS.API_KEY, value);
+  };
+
+  const handleCopyAll = () => {
+    if (!outputText) {
+      message.warning('没有可复制的内容');
+      return;
+    }
+    navigator.clipboard.writeText(outputText);
+    message.success('已复制全部译文');
+  };
+
+  const handleFileUpload = async (file: File) => {
+    try {
+      const result = await parseFile(file);
+      if (result.error) {
+        message.error(`解析失败: ${result.error}`);
+        return false;
+      }
+      
+      if (result.text) {
+        setInputText(result.text);
+        message.success('文件解析成功');
+      } else {
+        message.warning('文件内容为空');
+      }
+    } catch (error) {
+      console.error('File upload error:', error);
+      message.error('文件上传处理出错');
+    }
+    return false; // Prevent default upload behavior
+  };
+
+  const handleChunkUpdate = (index: number, newText: string) => {
+    const newChunks = [...outputChunks];
+    newChunks[index] = newText;
+    setOutputChunks(newChunks);
+    setOutputText(newChunks.join('\n\n'));
+  };
+
+  const handleExport = (type: 'md' | 'txt' | 'docx') => {
+    if (!outputText) {
+      message.warning('没有可导出的内容');
+      return;
+    }
+    const filename = generateFilename('translation', type);
+    if (type === 'md') {
+      exportToMarkdown(outputText, filename);
+    } else if (type === 'docx') {
+      exportToDocx(outputText, filename);
+    } else {
+      exportToTxt(outputText, filename);
+    }
+    message.success(`已导出 ${type.toUpperCase()} 文件`);
+  };
+
+  const exportMenuProps: MenuProps = {
+    items: [
+      {
+        key: 'docx',
+        label: '导出 Word 文档 (.docx)',
+        onClick: () => handleExport('docx'),
+      },
+      {
+        key: 'md',
+        label: '导出 Markdown (.md)',
+        onClick: () => handleExport('md'),
+      },
+      {
+        key: 'txt',
+        label: '导出 文本文件 (.txt)',
+        onClick: () => handleExport('txt'),
+      },
+    ],
   };
 
   const handleTranslate = async () => {
@@ -93,6 +185,7 @@ function App() {
         model: selectedModel,
         apiKey: apiKey,
         customPrompt: customPrompt,
+        glossary: glossary,
         onProgress: (chunks, stats) => {
           setOutputChunks(chunks);
           setOutputText(chunks.join('\n\n'));
@@ -117,6 +210,65 @@ function App() {
     }
   };
 
+  const handleClear = () => {
+    setInputText('');
+    setSourceChunks([]);
+    setOutputChunks([]);
+    setOutputText('');
+    setTotalChunks(0);
+    setCompletedChunks(0);
+    setTranslationTime(null);
+    setInputRanges([]);
+    setSelectedChunkIndex(null);
+    setViewMode('edit');
+    message.success('内容已清空');
+  };
+
+  const inputHeaderActions = (
+    <Space size="small">
+      <Upload 
+        beforeUpload={handleFileUpload} 
+        showUploadList={false}
+        accept=".docx,.xlsx,.txt,.md"
+      >
+        <Tooltip title="导入文件">
+          <Button type="text" icon={<UploadOutlined />} />
+        </Tooltip>
+      </Upload>
+      <Tooltip title="清空内容">
+        <Button type="text" icon={<DeleteOutlined />} onClick={handleClear} />
+      </Tooltip>
+    </Space>
+  );
+
+  const outputHeaderActions = (
+    <Space size="small">
+      {outputChunks.length > 0 && (
+        <>
+          <Tooltip title={viewMode === 'edit' ? '查看对照' : '编辑原文'}>
+            <Button
+              type="text"
+              icon={viewMode === 'edit' ? <SplitCellsOutlined /> : <EditOutlined />}
+              onClick={() => setViewMode(viewMode === 'edit' ? 'parallel' : 'edit')}
+            />
+          </Tooltip>
+          <Tooltip title="复制全部">
+            <Button
+              type="text"
+              icon={<CopyOutlined />}
+              onClick={handleCopyAll}
+            />
+          </Tooltip>
+          <Dropdown menu={exportMenuProps}>
+            <Tooltip title="导出">
+              <Button type="text" icon={<DownloadOutlined />} />
+            </Tooltip>
+          </Dropdown>
+        </>
+      )}
+    </Space>
+  );
+
   return (
     <Layout className="app-container">
       <Header className="app-header">
@@ -126,11 +278,11 @@ function App() {
       </Header>
       
       <Content className="app-content">
-        <div className="control-panel">
+        <div className="command-center">
           <Select 
             value={selectedModel} 
             onChange={handleModelChange}
-            style={{ width: 180 }}
+            style={{ width: 200 }}
             popupRender={(menu) => (
               <div>
                 {menu}
@@ -151,47 +303,43 @@ function App() {
             type="primary" 
             onClick={handleTranslate}
             loading={isLoading}
+            size="large"
+            style={{ minWidth: 120 }}
           >
-            翻译
+            {isLoading ? '翻译中...' : '开始翻译'}
           </Button>
 
-          {outputChunks.length > 0 && (
-             <Button
-               icon={viewMode === 'edit' ? <SplitCellsOutlined /> : <EditOutlined />}
-               onClick={() => setViewMode(viewMode === 'edit' ? 'parallel' : 'edit')}
-             >
-               {viewMode === 'edit' ? '查看对照' : '编辑原文'}
-             </Button>
-          )}
-          
           <Button 
-            type="link" 
-            onClick={() => setConfigVisible(!configVisible)}
+            onClick={() => setConfigVisible(true)}
           >
-            显示配置
+            配置
           </Button>
           
           <Tooltip title="上传中文文献，选择模型，输入API密钥，即可获得高质量英文翻译">
-            <InfoCircleOutlined style={{ fontSize: '16px', color: '#1677ff' }} />
+            <InfoCircleOutlined style={{ fontSize: '18px', color: '#1677ff', cursor: 'pointer' }} />
           </Tooltip>
         </div>
         
-        {configVisible && (
-          <ConfigPanel 
-            apiKey={apiKey}
-            setApiKey={handleApiKeyChange}
-            customPrompt={customPrompt}
-            setCustomPrompt={handleCustomPromptChange}
-            onClose={() => setConfigVisible(false)}
-          />
-        )}
+        <ConfigPanel 
+          visible={configVisible}
+          apiKey={apiKey}
+          setApiKey={handleApiKeyChange}
+          customPrompt={customPrompt}
+          setCustomPrompt={handleCustomPromptChange}
+          glossary={glossary}
+          setGlossary={setGlossary}
+          onClose={() => setConfigVisible(false)}
+        />
         
-        <div className="translation-area">
+        <div className="workspace">
           {viewMode === 'parallel' ? (
             <ParallelTranslationView 
               sourceChunks={sourceChunks}
               targetChunks={outputChunks}
               isLoading={isLoading}
+              onUpdateChunk={handleChunkUpdate}
+              sourceHeaderActions={inputHeaderActions}
+              targetHeaderActions={outputHeaderActions}
             />
           ) : (
             <>
@@ -205,6 +353,8 @@ function App() {
                   if (idx >= 0) setSelectedChunkIndex(idx);
                 }}
                 textareaRef={inputRef}
+                onFileUpload={handleFileUpload}
+                headerActions={inputHeaderActions}
               />
               
               <OutputArea 
@@ -218,6 +368,7 @@ function App() {
                 inputText={inputText}
                 inputRanges={inputRanges}
                 selectedChunkIndex={selectedChunkIndex}
+                onUpdateChunk={handleChunkUpdate}
                 onSelectChunk={(idx) => {
                   if (idx < 0 || idx >= inputRanges.length) return;
                   setSelectedChunkIndex(idx);
@@ -228,6 +379,7 @@ function App() {
                     el.setSelectionRange(range.start, range.end);
                   }
                 }}
+                headerActions={outputHeaderActions}
               />
             </>
           )}

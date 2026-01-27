@@ -5,6 +5,7 @@ interface TranslationRequest {
   model: string;
   apiKey: string;
   customPrompt?: string;
+  glossary?: { [key: string]: string };
   onProgress?: (chunks: string[], stats?: { completed: number; total: number; lastChunkIndex?: number; offsetStart?: number; offsetEnd?: number; chunkDelta?: string; isChunkFinal?: boolean }) => void;
 }
 
@@ -180,14 +181,71 @@ export const computeOffsets = (original: string, chunks: string[]): Array<{ star
 };
 
 const stripPartHeader = (s: string): string => {
-  return s.replace(/^\s*(\*\*\s*)?\[\s*Part\s+\d+\s+of\s+\d+\s*\](\s*\*\*)?\s*/i, '')
-          .replace(/^\s*\[这是第[\s\S]*?\]\s*/i, '');
+  let result = s;
+  
+  // 1. Remove standard Part headers
+  result = result.replace(/^\s*(\*\*\s*)?\[\s*Part\s+\d+\s+of\s+\d+\s*\](\s*\*\*)?\s*/i, '')
+                 .replace(/^\s*\[这是第[\s\S]*?\]\s*/i, '');
+
+  // 2. Remove echoed prompt sections (English & Chinese)
+  // Handle "User-Defined Requirements" / "用户自定义要求"
+  result = result.replace(/^\s*(?:\*\*\[|【)\s*(?:User-Defined Requirements|用户自定义要求)(?:\]\*\*|】)[\s\S]*?(?=(?:\*\*\[|【)(?:Previous Context|Text to Translate|前文内容)|$)/i, '');
+  
+  // Handle "Previous Context" / "前文内容"
+  result = result.replace(/^\s*(?:\*\*\[|【)\s*(?:Previous Context|前文内容)[\s\S]*?(?:\]\*\*|】)[\s\S]*?(?=(?:\*\*\[|【)(?:Text to Translate)|$)/i, '');
+  
+  // Handle "Text to Translate" / "请将以下..." headers
+  result = result.replace(/^\s*(?:\*\*\[|【)\s*Text to Translate(?:\]\*\*|】)\s*/i, '');
+  result = result.replace(/^\s*请将以下中文段落翻译为英文：\s*[\n\r]*\s*【{3}\s*/i, '');
+  
+  // Remove trailing brackets if they match the input format
+  result = result.replace(/\s*】{3}\s*$/, '');
+
+  // 3. Remove markdown bold markers (**text**) to keep plain text
+  result = result.replace(/\*\*/g, '');
+
+  return result.trim();
 };
 
 // 构建API请求体
-const buildRequestBody = (model: string, text: string, customPrompt: string = '') => {
-  const systemPrompt = '你是一名专业的学术翻译助手。请将用户提供的中文学术文献内容精准、流畅地翻译成英文。保持术语准确、风格正式、逻辑清晰。';
-  const userPrompt = `${customPrompt ? customPrompt + '\n\n' : ''}请翻译以下内容：\n【【【${text}】】】`;
+const buildRequestBody = (model: string, text: string, customPrompt: string = '', glossary?: { [key: string]: string }, previousContext?: string) => {
+  let systemPrompt = `你是一位精通中英文的资深学术翻译专家，拥有各学科领域的深厚背景知识。你的任务是将用户提供的中文学术文献翻译成地道、专业、符合学术规范的英文。
+
+请严格遵循以下翻译原则：
+1. **准确性 (Accuracy)**：忠实于原文含义，准确传递学术概念，不随意增减信息。
+2. **学术性 (Academic Tone)**：使用正式、客观的学术词汇和句式。避免口语化表达（如 contractions: don't -> do not）。恰当使用被动语态和名词化结构以增强客观性。
+3. **流畅性 (Fluency)**：确保译文逻辑连贯，符合英文表达习惯。彻底消除“中式英语” (Chinglish)，调整语序以符合英语逻辑（例如：将修饰语过长的定语前置改为后置定语从句或分词结构）。
+4. **术语一致性 (Terminology)**：确保专业术语在全文中的翻译保持一致。
+5. **公式规范 (Formulas)**：为了确保在 Word/WPS 中直接粘贴可用，请使用**“可视化纯文本数学格式”** (Visual Plain Text Math)：
+   - **禁止**使用 LaTeX 代码（如 "\\beta", "\\cdot", "\\frac", "$", "$$"）。
+   - **必须**直接使用 Unicode 希腊字母和数学符号（如 α, β, γ, ⋅, ×, ±, ≈, ≠, ≤, ≥, ∑, ∫）。
+   - 上下标处理：
+     - 简单数字下标使用 Unicode（如 x₀, x₁, x₂）。
+     - 复杂下标或不支持的字符使用下划线（如 x_i, x_p, β_0）。
+     - 上标统一使用 "^" 符号（如 x^2, e^x, x^α）。
+   - 示例：
+     - LaTeX: "$y = \\beta_0 + \\beta_1 x_1$" → 目标格式: "y = β0 + β1 x1" 或 "y = β₀ + β₁ x₁"
+     - LaTeX: "$E = mc^2$" → 目标格式: "E = mc^2"
+   - 确保公式清晰可读，不依赖特殊字体。
+
+特别注意：
+- 遇到模糊的中文表达时，根据上下文推断最合理的学术含义。
+- 保持段落结构与原文一致。
+- 仅输出翻译后的英文内容，不要包含任何解释、注脚或额外的对话文本。
+- 严禁在输出中重复用户的提示词、元数据标签（如 [User-Defined Requirements]）或【【【...】】】包裹结构。
+- 严禁使用 Markdown 加粗符号（即 **text**），直接输出纯文本。`;
+  
+  // 如果有术语表，将其添加到系统提示词中
+  if (glossary && Object.keys(glossary).length > 0) {
+    const glossaryText = Object.entries(glossary)
+      .map(([key, value]) => `- ${key}: ${value}`)
+      .join('\n');
+    systemPrompt += `\n\n请严格遵守以下术语翻译对照表：\n${glossaryText}`;
+  }
+
+  const userPrompt = `${customPrompt ? '【用户自定义要求】\n' + customPrompt + '\n\n' : ''}${
+    previousContext ? `【前文内容（仅作上下文参考，无需翻译）】\n...${previousContext}\n\n` : ''
+  }请将以下中文段落翻译为英文：\n【【【${text}】】】`;
   
   // 根据不同模型构建不同的请求体
   switch (model) {
@@ -264,6 +322,7 @@ export const translateText = async ({
   model,
   apiKey,
   customPrompt = '',
+  glossary,
   maxChunkSize,
   onProgress
 }: TranslationRequest & { maxChunkSize?: number }): Promise<TranslationResponse> => {
@@ -283,8 +342,11 @@ export const translateText = async ({
 
   const translateChunk = async (i: number) => {
     const chunk = chunks[i];
+    // 获取前文作为上下文，取前一个分块的最后500个字符
+    const previousContext = i > 0 ? chunks[i-1].slice(-500) : undefined;
+    
     const requestBody = {
-      ...buildRequestBody(model, chunk, customPrompt),
+      ...buildRequestBody(model, chunk, customPrompt, glossary, previousContext),
       __meta: { chunkIndex: i, offsetStart: offsets[i]?.start ?? 0, offsetEnd: offsets[i]?.end ?? 0 }
     };
     const endpoint = getApiEndpoint(model);
@@ -386,6 +448,7 @@ export const translateTextStream = async ({
   model,
   apiKey,
   customPrompt = '',
+  glossary,
   maxChunkSize,
   onProgress
 }: TranslationRequest & { maxChunkSize?: number }): Promise<TranslationResponse> => {
@@ -421,8 +484,11 @@ export const translateTextStream = async ({
   };
   for (let i = 0; i < total; i++) {
     const endpoint = getStreamEndpoint(model);
+    // 获取前文作为上下文，取前一个分块的最后500个字符
+    const previousContext = i > 0 ? chunks[i-1].slice(-500) : undefined;
+    
     const body = {
-      ...buildRequestBody(model, chunks[i], customPrompt),
+      ...buildRequestBody(model, chunks[i], customPrompt, glossary, previousContext),
       __meta: { chunkIndex: i, offsetStart: offsets[i]?.start ?? 0, offsetEnd: offsets[i]?.end ?? 0 },
       stream: true
     };

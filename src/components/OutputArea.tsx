@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Typography, Progress, Button, Tooltip } from 'antd';
+import { Typography, Progress, Button, Tooltip, Input, Space, message } from 'antd';
+import { EditOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 interface OutputAreaProps {
   value: string;
@@ -16,11 +18,13 @@ interface OutputAreaProps {
   onRetry?: () => void;
   retrying?: boolean;
   onSelectChunk: (index: number) => void;
+  onUpdateChunk?: (index: number, newText: string) => void;
   inputText: string;
   inputRanges: Array<{ start: number; end: number }>;
   onSelectOriginalRange?: (start: number, end: number, chunkIndex?: number) => void;
   isInputHidden?: boolean;
   onToggleInputHidden?: () => void;
+  headerActions?: React.ReactNode;
 }
 
 const OutputArea: React.FC<OutputAreaProps> = ({ 
@@ -35,11 +39,13 @@ const OutputArea: React.FC<OutputAreaProps> = ({
   onRetry,
   retrying,
   onSelectChunk,
+  onUpdateChunk,
   inputText,
   inputRanges,
   onSelectOriginalRange,
   isInputHidden,
-  onToggleInputHidden
+  onToggleInputHidden,
+  headerActions
 }) => {
   const chunkRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -138,6 +144,7 @@ const OutputArea: React.FC<OutputAreaProps> = ({
               用时：{translationTime}秒
             </Text>
           )}
+          {headerActions}
         </div>
       </div>
       
@@ -191,6 +198,9 @@ const OutputArea: React.FC<OutputAreaProps> = ({
               setActiveParaIdx(paraIdx);
               if (onSelectOriginalRange) onSelectOriginalRange(absStart, absEnd, detailIndex);
             }}
+            onUpdate={(newText) => {
+              if (onUpdateChunk) onUpdateChunk(detailIndex, newText);
+            }}
             full={!!isInputHidden}
           />
         )}
@@ -207,6 +217,7 @@ interface DetailDockProps {
   activeParaIdx: number | null;
   onClose: () => void;
   onSelectPara: (paraIdx: number, absStart: number, absEnd: number) => void;
+  onUpdate?: (newText: string) => void;
   full?: boolean;
 }
 
@@ -223,8 +234,24 @@ const DetailDock: React.FC<DetailDockProps> = ({
   activeParaIdx,
   onClose,
   onSelectPara,
+  onUpdate,
   full
 }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(translationText);
+
+  useEffect(() => {
+    setEditValue(translationText);
+  }, [translationText]);
+
+  const handleSave = () => {
+    if (onUpdate) {
+      onUpdate(editValue);
+      setIsEditing(false);
+      message.success('修改已保存');
+    }
+  };
+
   const origChunk = inputText.slice(inputRange.start, inputRange.end);
   const origParas = splitParas(origChunk);
   const transParas = splitParas(translationText);
@@ -239,7 +266,41 @@ const DetailDock: React.FC<DetailDockProps> = ({
   return (
     <div className={`detail-dock dock-visible ${full ? 'dock-full' : ''}`}>
       <div className="dock-header">
-        <span>第 {index + 1} 段对照</span>
+        <Space>
+          <span>第 {index + 1} 段对照</span>
+          {onUpdate && !isEditing && (
+            <Button 
+              type="text" 
+              icon={<EditOutlined />} 
+              size="small"
+              onClick={() => setIsEditing(true)}
+            >
+              编辑
+            </Button>
+          )}
+          {isEditing && (
+            <Space size="small">
+              <Button 
+                type="primary" 
+                size="small" 
+                icon={<SaveOutlined />} 
+                onClick={handleSave}
+              >
+                保存
+              </Button>
+              <Button 
+                size="small" 
+                icon={<CloseOutlined />} 
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditValue(translationText);
+                }}
+              >
+                取消
+              </Button>
+            </Space>
+          )}
+        </Space>
         <Button size="small" onClick={onClose}>关闭</Button>
       </div>
       <div className="dock-cols">
@@ -249,20 +310,29 @@ const DetailDock: React.FC<DetailDockProps> = ({
           )) : (<div className="para-item">原文尚未定位</div>)}
         </div>
         <div className="dock-col">
-          {transParas.length > 0 ? transParas.map((p, i) => (
-            <div
-              key={i}
-              className={`para-item ${activeParaIdx === i ? 'para-active' : ''}`}
-              onClick={() => {
-                const off = origOffsets[i] || { start: 0, end: 0 };
-                const absStart = inputRange.start + off.start;
-                const absEnd = inputRange.start + off.end;
-                onSelectPara(i, absStart, absEnd);
-              }}
-            >
-              {p}
-            </div>
-          )) : (<div className="para-item">译文尚未生成</div>)}
+          {isEditing ? (
+             <TextArea 
+               value={editValue}
+               onChange={(e) => setEditValue(e.target.value)}
+               autoSize={{ minRows: 10, maxRows: 30 }}
+               style={{ height: '100%', resize: 'none', fontSize: '15px', lineHeight: '1.6' }}
+             />
+          ) : (
+            transParas.length > 0 ? transParas.map((p, i) => (
+              <div
+                key={i}
+                className={`para-item ${activeParaIdx === i ? 'para-active' : ''}`}
+                onClick={() => {
+                  const off = origOffsets[i] || { start: 0, end: 0 };
+                  const absStart = inputRange.start + off.start;
+                  const absEnd = inputRange.start + off.end;
+                  onSelectPara(i, absStart, absEnd);
+                }}
+              >
+                {p}
+              </div>
+            )) : (<div className="para-item">译文尚未生成</div>)
+          )}
         </div>
       </div>
     </div>
