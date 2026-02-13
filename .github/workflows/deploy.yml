@@ -71,9 +71,9 @@ jobs:
       - name: Deploy to Server via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SERVER_HOST }}
+          host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT || '22' }}
           script_stop: true
           script: |
@@ -106,7 +106,7 @@ jobs:
             docker run -d \
               --name \$CONTAINER \
               --restart always \
-              -p 3000:3000 \
+              -p 80:3000 \
               --env-file .env \
               \$FULL_IMG
             
