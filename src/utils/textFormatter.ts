@@ -18,7 +18,7 @@ const UNIT_REPLACEMENTS: [RegExp, string | ((match: string, ...args: string[]) =
   // 修正特定的单位组合 (防止误伤)
   [/g\/cm\^3/g, 'g/cm³'],
   [/kg\/m\^3/g, 'kg/m³'],
-  [/10\^-(\d+)/g, (match: string, p1: string) => {
+  [/10\^-(\d+)/g, (_match: string, p1: string) => {
     // Helper function toSuperscript used here
     const map: { [key: string]: string } = {
       '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
@@ -58,17 +58,17 @@ const STRATIGRAPHY_PATTERNS = [
   // So we need to match "E2³" and convert the 2 to subscript
   {
     regex: /\b([EJKTO])(\d)([⁰¹²³⁴⁵⁶⁷⁸⁹])\b/g,
-    replacement: (match: string, p1: string, p2: string, p3: string) => `${p1}${toSubscript(p2)}${p3}`
+    replacement: (_match: string, p1: string, p2: string, p3: string) => `${p1}${toSubscript(p2)}${p3}`
   },
   // 修正 "E23" -> "E₂³" (仅针对特定前缀 + 2位数字，且数字不大)
   {
     regex: /\b([EJKTO])([1-4])([1-4])\b/g,
-    replacement: (match: string, p1: string, p2: string, p3: string) => `${p1}${toSubscript(p2)}${toSuperscript(p3)}`
+    replacement: (_match: string, p1: string, p2: string, p3: string) => `${p1}${toSubscript(p2)}${toSuperscript(p3)}`
   },
   // 修正 "K1" -> "K₁" (Single digit suffix)
   {
     regex: /\b([EJKTO])(\d)\b/g,
-    replacement: (match: string, p1: string, p2: string) => `${p1}${toSubscript(p2)}`
+    replacement: (_match: string, p1: string, p2: string) => `${p1}${toSubscript(p2)}`
   }
 ];
 
