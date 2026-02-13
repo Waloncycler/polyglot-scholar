@@ -66,6 +66,7 @@ jobs:
     needs: build-and-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment: pro
     
     steps:
       - name: Deploy to Server via SSH
