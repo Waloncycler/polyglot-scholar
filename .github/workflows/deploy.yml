@@ -81,6 +81,9 @@ jobs:
             export FULL_IMAGE_NAME=$(echo "ghcr.io/${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             echo "Deploying $FULL_IMAGE_NAME:latest..."
             
+            # Login to GHCR on the server
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
             # Ensure deploy directory exists
             mkdir -p ~/apps/polyglot-scholar
             cd ~/apps/polyglot-scholar
