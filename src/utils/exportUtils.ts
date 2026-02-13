@@ -62,7 +62,7 @@ export const exportToDocx = async (content: string, filename: string = 'translat
       // or if we are already in a table body
       // We'll just assume any block of pipe-rows is a table for simplicity
       
-      let tableLines: string[] = [];
+      const tableLines: string[] = [];
       while (i < lines.length && isTableRow(lines[i])) {
         // Skip separator lines
         if (!isSeparatorRow(lines[i])) {

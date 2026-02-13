@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -35,6 +36,12 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use(cors());
 app.use(express.json());
 app.use(compression());
+
+// 静态文件托管 (生产环境)
+// 只有在存在 public 目录时才托管 (Docker构建时会放入)
+if (process.env.NODE_ENV === 'production' || require('fs').existsSync(path.join(__dirname, 'public'))) {
+  app.use(express.static(path.join(__dirname, 'public')));
+}
 
 // 速率限制
 const apiLimiter = rateLimit({
@@ -345,3 +352,15 @@ app.get('/api/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`API代理服务器运行在端口 ${PORT}`);
 });
+
+// 处理SPA路由 (放在所有API路由之后)
+// 任何不匹配API的请求都返回index.html
+if (process.env.NODE_ENV === 'production' || require('fs').existsSync(path.join(__dirname, 'public'))) {
+  app.get('*', (req, res) => {
+    // 如果请求的是API但未匹配到，返回404而不是index.html
+    if (req.path.startsWith('/api/')) {
+      return res.status(404).json({ error: 'Not Found' });
+    }
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  });
+}

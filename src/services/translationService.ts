@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { ACADEMIC_FORMAT_PROTOCOL } from '../config/promptRules';
+import { postProcessText } from '../utils/textFormatter';
 
 interface TranslationRequest {
   text: string;
@@ -204,6 +206,9 @@ const stripPartHeader = (s: string): string => {
   // 3. Remove markdown bold markers (**text**) to keep plain text
   result = result.replace(/\*\*/g, '');
 
+  // 4. Apply post-processing formatting rules (for units, well names, stratigraphy)
+  result = postProcessText(result);
+
   return result.trim();
 };
 
@@ -216,17 +221,8 @@ const buildRequestBody = (model: string, text: string, customPrompt: string = ''
 2. **学术性 (Academic Tone)**：使用正式、客观的学术词汇和句式。避免口语化表达（如 contractions: don't -> do not）。恰当使用被动语态和名词化结构以增强客观性。
 3. **流畅性 (Fluency)**：确保译文逻辑连贯，符合英文表达习惯。彻底消除“中式英语” (Chinglish)，调整语序以符合英语逻辑（例如：将修饰语过长的定语前置改为后置定语从句或分词结构）。
 4. **术语一致性 (Terminology)**：确保专业术语在全文中的翻译保持一致。
-5. **公式规范 (Formulas)**：为了确保在 Word/WPS 中直接粘贴可用，请使用**“可视化纯文本数学格式”** (Visual Plain Text Math)：
-   - **禁止**使用 LaTeX 代码（如 "\\beta", "\\cdot", "\\frac", "$", "$$"）。
-   - **必须**直接使用 Unicode 希腊字母和数学符号（如 α, β, γ, ⋅, ×, ±, ≈, ≠, ≤, ≥, ∑, ∫）。
-   - 上下标处理：
-     - 简单数字下标使用 Unicode（如 x₀, x₁, x₂）。
-     - 复杂下标或不支持的字符使用下划线（如 x_i, x_p, β_0）。
-     - 上标统一使用 "^" 符号（如 x^2, e^x, x^α）。
-   - 示例：
-     - LaTeX: "$y = \\beta_0 + \\beta_1 x_1$" → 目标格式: "y = β0 + β1 x1" 或 "y = β₀ + β₁ x₁"
-     - LaTeX: "$E = mc^2$" → 目标格式: "E = mc^2"
-   - 确保公式清晰可读，不依赖特殊字体。
+
+${ACADEMIC_FORMAT_PROTOCOL}
 
 特别注意：
 - 遇到模糊的中文表达时，根据上下文推断最合理的学术含义。
