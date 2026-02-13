@@ -49,7 +49,7 @@ USER appuser
 EXPOSE 3000
 
 # Set environment variables
-ENV NODE_ENV=production
+ENV NODE_ENV=pro
 ENV PORT=3000
 
 # Start server
