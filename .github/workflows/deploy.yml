@@ -91,25 +91,25 @@ jobs:
             cat << 'EOF' > deploy.sh
             #!/bin/bash
             set -e
-            IMAGE=\$1
-            TAG=\$2
-            FULL_IMG="\$IMAGE:\$TAG"
+            IMAGE=$1
+            TAG=$2
+            FULL_IMG="$IMAGE:$TAG"
             CONTAINER="polyglot-scholar"
             
-            echo "Pulling \$FULL_IMG..."
-            docker pull \$FULL_IMG
+            echo "Pulling $FULL_IMG..."
+            docker pull $FULL_IMG
             
             echo "Stopping old container..."
-            docker stop \$CONTAINER || true
-            docker rm \$CONTAINER || true
+            docker stop $CONTAINER || true
+            docker rm $CONTAINER || true
             
             echo "Starting new container..."
             docker run -d \
-              --name \$CONTAINER \
+              --name $CONTAINER \
               --restart always \
               -p 80:3000 \
               --env-file .env \
-              \$FULL_IMG
+              $FULL_IMG
             
             # Prune old images to save space
             docker image prune -f
