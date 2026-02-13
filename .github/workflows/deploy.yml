@@ -88,6 +88,14 @@ jobs:
             mkdir -p ~/apps/polyglot-scholar
             cd ~/apps/polyglot-scholar
             
+            # Create .env file if not exists
+            if [ ! -f .env ]; then
+              echo "Creating default .env file..."
+              echo "PORT=3000" > .env
+              echo "NODE_ENV=production" >> .env
+              # You can add more default variables here if needed
+            fi
+            
             # Create deploy script if not exists (or update it)
             # Ideally this script should be part of the repo and copied over, 
             # but creating it here ensures it works even if repo is not cloned on server.
