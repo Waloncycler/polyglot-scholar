@@ -118,7 +118,7 @@ jobs:
             docker run -d \
               --name $CONTAINER \
               --restart always \
-              -p 80:3000 \
+              -p 8080:3000 \
               --env-file .env \
               $FULL_IMG
             

@@ -33,7 +33,7 @@ echo "Starting new container..."
 docker run -d \
     --name $CONTAINER_NAME \
     --restart always \
-    -p 3000:3000 \
+    -p 8080:3000 \
     --env-file .env \
     $FULL_IMAGE
 
